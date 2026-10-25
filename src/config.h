@@ -21,10 +21,14 @@ struct PartConfig {
 struct Config {
     bool enabled = true;
     bool onlyArthur = true;
-    float growIntervalSeconds = 30.0f;   // real seconds per length step
-    bool lockBarber = true;              // undo haircuts/shaves done by the game
+    // natural: the game grows hair as usual; when it hasn't grown a part for
+    // hoursPerStep in-game hours (e.g. at the vanilla maximum), the mod grows it.
+    // turbo: one step every growIntervalSeconds real seconds.
+    bool turbo = false;
+    float hoursPerStep = 48.0f;          // natural: in-game hours per length step
+    float growIntervalSeconds = 30.0f;   // turbo: real seconds per length step
+    bool lockBarber = false;             // undo haircuts/shaves done by the game
     bool showNotifications = true;
-    bool german = false;                 // on-screen texts: Language=en (default) or de
     bool recordMode = false;             // log every hair/beard change
 
     int toggleKey = 0x79;   // F10
@@ -40,7 +44,8 @@ struct Config {
 // Reads InfiniteHair.ini.
 Config loadConfig(const std::string& dir);
 
-// Persisted target length per part key, so growth survives restarts.
+// Persisted per part: "<Part>Length" (target length) and "<Part>Minutes"
+// (in-game minutes since the last growth step), so growth survives restarts.
 using State = std::map<std::string, int>;
 
 State loadState(const std::string& dir);

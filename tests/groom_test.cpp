@@ -82,6 +82,31 @@ int main(int, char** argv) {
     b.part = kBeardChin; b.style = 0; b.length = 18; b.flag = 0;
     check(drawableHash(b) == joaat("player_three_ms1_beard_shv_chin_000_02"), "length 18 applies john slot");
 
+    // 8) the game's own maximum per style (natural growth hands over there)
+    DrawableInfo v9; v9.part = kHair; v9.style = 4; v9.length = 5; v9.flag = 0;
+    check(vanillaMaxLength(v9) == 9, "hair s04 vanilla max 9 (chains don't count)");
+    DrawableInfo vb; vb.part = kBeardChin; vb.style = 0; vb.length = 5; vb.flag = 0;
+    check(vanillaMaxLength(vb) == 10, "chin beard vanilla max 10");
+    DrawableInfo vx; vx.part = kHair; vx.style = 12; vx.length = 5; vx.flag = 0;
+    check(vanillaMaxLength(vx) == -1, "unknown style has no vanilla max");
+
+    // 9) other styles grow on into the extension style (barber cut -> s01)
+    int es = -1, ef = -1;
+    check(extensionStyle(kHair, es, ef) && es == 4 && ef == 0, "hair extension style s04 p0");
+    DrawableInfo s01; s01.part = kHair; s01.style = 1; s01.length = 9; s01.flag = 0;
+    check(maxReachableLength(s01) == 10, "s01 reaches the s04 chain");
+    DrawableInfo r = resolveLength(s01, 10);
+    check(r.style == 4 && r.flag == 0 && r.length == 10, "s01 length 10 -> s04 l10");
+    check(drawableHash(r) == joaat("player_zero_hair_s08_l03_p1"), "s01 length 10 applies the s04 slot");
+    r = resolveLength(s01, 5);
+    check(r.style == 1 && r.length == 5, "s01 keeps its own lengths");
+    DrawableInfo s02p1; s02p1.part = kHair; s02p1.style = 2; s02p1.length = 9; s02p1.flag = 1;
+    check(maxReachableLength(s02p1) == 10, "pomade style reaches the chain too");
+    DrawableInfo stache; stache.part = kBeardMustache; stache.style = 0; stache.length = 5; stache.flag = 0;
+    check(maxReachableLength(stache) == 10, "no mustache chains: own max");
+    DrawableInfo chin1; chin1.part = kBeardChin; chin1.style = 1; chin1.length = 10; chin1.flag = 0;
+    check(maxReachableLength(chin1) == 18 && resolveLength(chin1, 11).style == 0, "chin style 001 grows into 000");
+
     printf(fails ? "FAILED: %d\n" : "ALL OK\n", fails);
     return fails ? 1 : 0;
 }

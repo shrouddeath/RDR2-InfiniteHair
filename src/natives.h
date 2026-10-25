@@ -58,6 +58,13 @@ inline bool IS_PED_USING_ANY_SCENARIO(Ped ped) { return native::invoke<int>(0x57
 inline bool IS_PAUSE_MENU_ACTIVE() { return native::invoke<int>(0x535384D6067BA42E) != 0; }
 inline bool IS_ANY_UIAPP_ACTIVE() { return native::invoke<int>(0xAC959AB99AAF3D9F) != 0; }
 
+// ---- CLOCK: in-game date and time (natural growth follows game time) ---------
+inline int GET_CLOCK_YEAR() { return native::invoke<int>(0xE136DCA28C4A48BA); }
+inline int GET_CLOCK_MONTH() { return native::invoke<int>(0x2D44E8FC79EAB1AC); }
+inline int GET_CLOCK_DAY_OF_MONTH() { return native::invoke<int>(0xDF2FD796C54480A5); }
+inline int GET_CLOCK_HOURS() { return native::invoke<int>(0xC82CF208C2B19199); }
+inline int GET_CLOCK_MINUTES() { return native::invoke<int>(0x4E162231B823DBBF); }
+
 // ---- PED: MetaPed shop items (hair, beard, clothing all live here) ----------
 inline int _GET_META_PED_TYPE(Ped ped) { return native::invoke<int>(0xEC9A1261BF0CE510, ped); }
 inline int _GET_NUM_COMPONENTS_IN_PED(Ped ped) { return native::invoke<int>(0x90403E8107B60E81, ped); }

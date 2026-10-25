@@ -7,8 +7,8 @@ cd /d "%~dp0"
 set "SDK=%~1"
 if "%SDK%"=="" set "SDK=%~dp0sdk"
 if not exist "%SDK%\inc\main.h" (
-    echo [!] ScriptHookRDR2 SDK nicht gefunden: "%SDK%\inc\main.h" fehlt.
-    echo     SDK-Zip so entpacken, dass sdk\inc\main.h und sdk\lib\ScriptHookRDR2.lib existieren.
+    echo [!] ScriptHookRDR2 SDK not found: "%SDK%\inc\main.h" is missing.
+    echo     Unpack the SDK zip so that sdk\inc\main.h and sdk\lib\ScriptHookRDR2.lib exist.
     exit /b 1
 )
 
@@ -18,7 +18,7 @@ set "VS="
 set /p VS=<"%TEMP%\infinitehair_vs.txt"
 del "%TEMP%\infinitehair_vs.txt" >nul 2>&1
 if "%VS%"=="" (
-    echo [!] Visual Studio mit C++ nicht gefunden.
+    echo [!] Visual Studio with C++ not found.
     exit /b 1
 )
 call "%VS%\VC\Auxiliary\Build\vcvars64.bat" >nul 2>&1 || exit /b 1

@@ -1,5 +1,6 @@
 #include "groom.h"
 
+#include <algorithm>
 #include <cstdio>
 #include <map>
 #include <set>
@@ -44,6 +45,12 @@ std::map<Hash, DrawableInfo>& virtualOfSlot() {
     return virtuals;
 }
 
+// Part -> chain info with the highest length (its style/flag is the extension style).
+std::map<int, DrawableInfo>& longestChain() {
+    static std::map<int, DrawableInfo> chains;
+    return chains;
+}
+
 // Ranges documented in femga/rdr3_discoveries (cloth_drawable_..._TEMPORARY.lua).
 bool inVanillaRange(const DrawableInfo& d) {
     if (d.part == kHair) {
@@ -65,7 +72,7 @@ const char* partKey(Part part) {
 }
 
 const char* partLabel(Part part) {
-    static const char* labels[kPartCount] = {"Haare", "Kinnbart", "Schnurrbart", "Koteletten"};
+    static const char* labels[kPartCount] = {"Hair", "Chin beard", "Mustache", "Sideburns"};
     return labels[part];
 }
 
@@ -100,7 +107,42 @@ bool addChain(const std::string& virtualName, const std::string& slotName) {
     slotOfVirtual()[virtualHash] = slotHash;
     virtualOfSlot()[slotHash] = v->second;
     extras().insert(virtualHash);
+    auto longest = longestChain().find(v->second.part);
+    if (longest == longestChain().end() || v->second.length > longest->second.length)
+        longestChain()[v->second.part] = v->second;
     return true;
+}
+
+bool extensionStyle(Part part, int& style, int& flag) {
+    auto it = longestChain().find(part);
+    if (it == longestChain().end()) return false;
+    style = it->second.style;
+    flag = it->second.flag;
+    return true;
+}
+
+DrawableInfo resolveLength(const DrawableInfo& worn, int length) {
+    DrawableInfo own = worn;
+    own.length = length;
+    int style = 0, flag = 0;
+    if (drawableKnown(own) || !extensionStyle(worn.part, style, flag)) return own;
+    if (length <= maxKnownLength(worn)) return own;   // a gap in the worn style, not past its end
+    DrawableInfo ext = own;
+    ext.style = style;
+    ext.flag = flag;
+    return drawableKnown(ext) ? ext : own;
+}
+
+int maxReachableLength(const DrawableInfo& worn) {
+    int own = maxKnownLength(worn);
+    int style = 0, flag = 0;
+    if (own < 0 || !extensionStyle(worn.part, style, flag)) return own;
+    DrawableInfo ext = worn;
+    ext.style = style;
+    ext.flag = flag;
+    ext.length = own + 1;
+    // Only if the extension continues right where the worn style ends.
+    return drawableKnown(ext) ? std::max(own, maxKnownLength(ext)) : own;
 }
 
 Hash drawableHash(const DrawableInfo& info) {
@@ -120,6 +162,13 @@ bool addExtraDrawable(const std::string& name) {
     if (!parseDrawable(h, info)) return false;
     extras().insert(h);
     return true;
+}
+
+int vanillaMaxLength(const DrawableInfo& info) {
+    DrawableInfo d = info;
+    for (d.length = kMaxProbeLength; d.length >= 1; --d.length)
+        if (inVanillaRange(d)) return d.length;
+    return -1;
 }
 
 int minKnownLength(const DrawableInfo& info) {

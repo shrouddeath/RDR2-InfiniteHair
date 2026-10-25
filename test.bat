@@ -8,7 +8,7 @@ set "VS="
 set /p VS=<"%TEMP%\infinitehair_vs.txt"
 del "%TEMP%\infinitehair_vs.txt" >nul 2>&1
 if "%VS%"=="" (
-    echo [!] Visual Studio mit C++ nicht gefunden.
+    echo [!] Visual Studio with C++ not found.
     exit /b 1
 )
 call "%VS%\VC\Auxiliary\Build\vcvars64.bat" >nul 2>&1 || exit /b 1

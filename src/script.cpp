@@ -9,6 +9,7 @@
 #include "script.h"
 
 #include <algorithm>
+#include <cstdlib>
 #include <map>
 #include <string>
 #include <vector>
@@ -46,11 +47,43 @@ struct PartState {
     bool growthOwed = false;  // a growth step waits for a probe answer
     bool maxAnnounced = false;
     bool duplicateWarned = false;
+    int lastSeen = -1;        // length seen in the previous tick
+    bool cutWhileBusy = false;  // got shorter at the barber / camp mirror
+    int savedMinutes = 0;     // minutes value last written to the state file
 };
 static PartState g_parts[kPartCount];
 
+// In-game minutes that passed since the last tick that handled growth.
+static int g_minutesBank = 0;
+
 static const Hash kArthurModel = joaat("player_zero");
 static const char* kVersion = "1.0.0";
+
+static int& targetOf(Part part) { return g_state[std::string(partKey(part)) + "Length"]; }
+static int& minutesOf(Part part) { return g_state[std::string(partKey(part)) + "Minutes"]; }
+
+// Days since 1970-01-01 for a proleptic Gregorian date (H. Hinnant's algorithm).
+static long long daysFromCivil(int y, int m, int d) {
+    y -= m <= 2 ? 1 : 0;
+    const int era = (y >= 0 ? y : y - 399) / 400;
+    const int yoe = y - era * 400;
+    const int doy = (153 * (m > 2 ? m - 3 : m + 9) + 2) / 5 + d - 1;
+    const int doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    return static_cast<long long>(era) * 146097 + doe - 719468;
+}
+
+// In-game minutes since the previous call. Sleeping, waiting and travelling
+// advance the clock just like the game's own hair growth expects. Jumps
+// backwards or by more than two days (loading another save) don't count.
+static int gameMinutesElapsed() {
+    static long long last = -1;
+    int month = GET_CLOCK_MONTH() + 1;   // the clock natives count months from 0
+    long long now = daysFromCivil(GET_CLOCK_YEAR(), month, GET_CLOCK_DAY_OF_MONTH()) * 1440 +
+                    GET_CLOCK_HOURS() * 60 + GET_CLOCK_MINUTES();
+    long long delta = last < 0 ? 0 : now - last;
+    last = now;
+    return delta > 0 && delta <= 2 * 1440 ? static_cast<int>(delta) : 0;
+}
 
 void ScriptSetModule(HMODULE module) { g_module = module; }
 
@@ -66,14 +99,6 @@ static std::string hex(Hash h) {
     char buf[16];
     snprintf(buf, sizeof(buf), "0x%08X", h);
     return buf;
-}
-
-// On-screen texts follow [General] Language; the log stays as it is.
-static const char* tr(const char* en, const char* de) { return g_cfg.german ? de : en; }
-
-static const char* shownPart(Part part) {
-    static const char* en[kPartCount] = {"Hair", "Chin beard", "Mustache", "Sideburns"};
-    return g_cfg.german ? partLabel(part) : en[part];
 }
 
 static void notify(const std::string& text) {
@@ -118,7 +143,7 @@ static bool gameIsBusy(Ped ped) {
     DWORD now = GetTickCount();
     if (busy) g_busyUntil = now + kSettleMs;
     bool result = busy || static_cast<LONG>(g_busyUntil - now) > 0;
-    if (result != g_wasBusy) logfile::write(result ? "[busy] Spiel steuert gerade - Mod pausiert" : "[busy] wieder frei");
+    if (result != g_wasBusy) logfile::write(result ? "[busy] game in control - mod waits" : "[busy] free again");
     g_wasBusy = result;
     return result;
 }
@@ -200,7 +225,7 @@ static Probe probeDrawable(const std::string& name, const Asset& a) {
     e.request = REQUEST_META_PED_ASSET_SET(joaat(name), a.albedo, a.normal, a.material);
     if (e.request < 0) {
         e.result = Probe::Missing;
-        logfile::write("[probe] %s: nicht vorhanden", name.c_str());
+        logfile::write("[probe] %s: missing", name.c_str());
     } else {
         e.result = Probe::Pending;
         e.started = GetTickCount();
@@ -221,13 +246,14 @@ static void pollProbes() {
         bool isNew = loaded && parseDrawable(hash, info) && !drawableKnown(info);
         if (isNew) addExtraDrawable(e.name);
         logfile::write("[probe] %s: %s", e.name.c_str(),
-                       !loaded ? "nicht vorhanden" : isNew ? "existiert - NEUE Laenge gefunden" : "existiert");
+                       !loaded ? "missing" : isNew ? "exists - NEW length found" : "exists");
     }
 }
 
 // ---- diagnostics -------------------------------------------------------------
 
-static void dumpAssets(Ped ped, const std::vector<Asset>& assets) {
+// `announce`: confirm on screen (F9). The automatic dump after loading is silent.
+static void dumpAssets(Ped ped, const std::vector<Asset>& assets, bool announce) {
     logfile::write("---- dump (%d entries, model 0x%08X) ----", static_cast<int>(assets.size()), GET_ENTITY_MODEL(ped));
     for (const Asset& a : assets) {
         logfile::write("#%02d item=%s cat=%s wear=%s | drawable=%s ab=%s nm=%s ma=%s | pal=%s tint=%d/%d/%d", a.index,
@@ -237,7 +263,7 @@ static void dumpAssets(Ped ped, const std::vector<Asset>& assets) {
         if (!a.groom) continue;
 
         int minLen = minKnownLength(a.info), maxLen = maxKnownLength(a.info);
-        logfile::write("    -> %s Stil %d, Laenge %d (bekannt: %d..%d)", partLabel(a.info.part), a.info.style,
+        logfile::write("    -> %s style %d, length %d (known: %d..%d)", partLabel(a.info.part), a.info.style,
                        a.info.length, minLen, maxLen);
         // Control probe (should exist) plus a few lengths past the known maximum.
         // Borrowed slots answer under the slot's name, not the virtual one.
@@ -247,7 +273,7 @@ static void dumpAssets(Ped ped, const std::vector<Asset>& assets) {
              next.length <= std::min(kMaxProbeLength, std::max(maxLen, a.info.length) + 3); ++next.length)
             probeDrawable(drawableName(next), a);
     }
-    notify(tr("parts written to InfiniteHair.log", "Teile ins Log geschrieben (InfiniteHair.log)"));
+    if (announce) notify("parts written to InfiniteHair.log");
 }
 
 // RecordMode: log every change of a shop item or a hair/beard drawable.
@@ -273,23 +299,52 @@ static void recordChanges(const std::vector<Asset>& assets) {
 
 // ---- growth ------------------------------------------------------------------
 
+// Textures last seen on the extension style, for switching another style into it.
+struct Textures {
+    bool known = false;
+    Hash albedo = 0, normal = 0, material = 0, palette = 0;
+    int tint0 = 0, tint1 = 0, tint2 = 0;
+};
+static Textures g_extTextures[kPartCount];
+
+static void rememberExtensionTextures(const std::vector<Asset>& assets) {
+    for (const Asset& a : assets) {
+        int style = 0, flag = 0;
+        if (!a.groom || !extensionStyle(a.info.part, style, flag) || a.info.style != style || a.info.flag != flag)
+            continue;
+        g_extTextures[a.info.part] = {true, a.albedo, a.normal, a.material, a.palette, a.tint0, a.tint1, a.tint2};
+    }
+}
+
 static void applyLength(Ped ped, const Asset& a, int length) {
-    DrawableInfo want = a.info;
-    want.length = length;
-    _SET_META_PED_TAG(ped, drawableHash(want), a.albedo, a.normal, a.material, a.palette, a.tint0, a.tint1, a.tint2);
+    DrawableInfo want = resolveLength(a.info, length);
+    Textures t{true, a.albedo, a.normal, a.material, a.palette, a.tint0, a.tint1, a.tint2};
+    bool switchesStyle = want.style != a.info.style || want.flag != a.info.flag;
+    if (switchesStyle && g_extTextures[a.info.part].known) {
+        t = g_extTextures[a.info.part];
+        t.palette = a.palette;   // keep the hair colour the player has now
+        t.tint0 = a.tint0;
+        t.tint1 = a.tint1;
+        t.tint2 = a.tint2;
+    }
+    _SET_META_PED_TAG(ped, drawableHash(want), t.albedo, t.normal, t.material, t.palette, t.tint0, t.tint1, t.tint2);
     _UPDATE_PED_VARIATION(ped, false, true, true, true, false);
-    logfile::write("%s: %s -> %s", partLabel(a.info.part), drawableName(a.info).c_str(), drawableName(want).c_str());
+    logfile::write("%s: %s -> %s%s", partLabel(a.info.part), drawableName(a.info).c_str(), drawableName(want).c_str(),
+                   switchesStyle ? " (long style)" : "");
 }
 
 enum class Growth { None, Grew, ReachedMax };
 
-// Keeps one part at its target length and grows it when growNow is set.
-static Growth updatePart(Ped ped, Part part, const Asset* a, bool growNow, bool cutNow, bool& stateDirty) {
+// Keeps one part at its target length and grows it when growNow is set or, in
+// natural mode, when its in-game growth clock runs out.
+static Growth updatePart(Ped ped, Part part, const Asset* a, bool growNow, bool cutNow, int elapsedMinutes,
+                         bool& stateDirty) {
     const PartConfig& pc = g_cfg.parts[part];
     if (!pc.enabled || !a) return Growth::None;   // disabled, shaved off, or hidden under a hat
 
     PartState& ps = g_parts[part];
-    int& target = g_state[partKey(part)];
+    int& target = targetOf(part);
+    int& minutes = minutesOf(part);
     int current = a->info.length;
     DWORD now = GetTickCount();
 
@@ -303,8 +358,7 @@ static Growth updatePart(Ped ped, Part part, const Asset* a, bool growNow, bool 
         } else {
             ps.pendingLength = -1;
             if (++ps.failures >= kMaxFailedApplies) {
-                logfile::write("%s: Laenge %d laesst sich nicht setzen - bleibe bei %d", partLabel(part), target,
-                               current);
+                logfile::write("%s: length %d can't be set - staying at %d", partLabel(part), target, current);
                 ps.blockedStyle = a->info.style;
                 ps.blockedLength = target;
                 target = current;
@@ -316,20 +370,34 @@ static Growth updatePart(Ped ped, Part part, const Asset* a, bool growNow, bool 
     }
 
     int minLen = minKnownLength(a->info);
-    int maxLen = maxKnownLength(a->info);
+    int maxLen = maxReachableLength(a->info);
     if (pc.maxLength > 0) maxLen = std::min(maxLen, pc.maxLength);
     if (ps.blockedStyle == a->info.style && ps.blockedLength > 0) maxLen = std::min(maxLen, ps.blockedLength - 1);
     if (minLen < 0 || maxLen < 0) return Growth::None;   // style we have no lengths for
 
     if (target < 0 || current > target) {
-        // First sight, or it grew on its own / the player picked a longer cut.
+        // First sight, or the game grew it (natural growth, hair tonic): adopt
+        // it and restart our own growth clock.
+        if (target >= 0) minutes = 0;
         target = current;
         stateDirty = true;
-    } else if (current < target && !g_cfg.lockBarber) {
-        // Barber or shave: accept the new length and grow on from there.
-        target = current;
-        stateDirty = true;
+    } else if (current < target) {
+        // Shorter than it should be. A real haircut or shave only happens at the
+        // barber or the camp mirror (game busy) and doesn't land exactly on the
+        // game's own maximum while the hair is longer than that: that is the
+        // game re-applying the length it tracks (outfit change, mounting a horse,
+        // loading), which we undo like LockBarber does.
+        int vanillaMax = vanillaMaxLength(a->info);
+        bool haircut = ps.cutWhileBusy && !g_cfg.lockBarber &&
+                       (vanillaMax < 0 || current < vanillaMax || target <= vanillaMax);
+        if (haircut) {
+            logfile::write("%s: haircut %d -> %d accepted", partLabel(part), target, current);
+            target = current;
+            minutes = 0;
+            stateDirty = true;
+        }
     }
+    ps.cutWhileBusy = false;
 
     // At the longest known length: ask the game whether a longer model exists
     // (e.g. one added with LML). Found ones count as known from then on.
@@ -342,8 +410,26 @@ static Growth updatePart(Ped ped, Part part, const Asset* a, bool growNow, bool 
         nextProbe = probeDrawable(drawableName(next), *a);
     }
 
+    // Natural mode: count in-game time. When the game hasn't grown this part for
+    // HoursPerStep hours (at its own maximum, or stuck without hair tonic), grow
+    // it one step ourselves - at the game's pace, up to our longest length.
+    bool clockGrow = false;
+    if (!g_cfg.turbo) {
+        int stepMinutes = std::max(1, static_cast<int>(g_cfg.hoursPerStep * 60.0f));
+        if (target >= maxLen && nextProbe != Probe::Pending) {
+            minutes = std::min(minutes + elapsedMinutes, stepMinutes);   // nothing left to grow into
+        } else {
+            minutes += elapsedMinutes;
+            if (minutes >= stepMinutes) {
+                clockGrow = true;
+                minutes = std::min(minutes - stepMinutes, stepMinutes - 1);   // one step per tick
+            }
+        }
+        if (clockGrow || std::abs(minutes - ps.savedMinutes) >= 60) stateDirty = true;
+    }
+
     Growth result = Growth::None;
-    bool wantGrow = growNow || ps.growthOwed;
+    bool wantGrow = growNow || clockGrow || ps.growthOwed;
     if (cutNow) {
         target = minLen;
         ps.maxAnnounced = false;
@@ -361,7 +447,7 @@ static Growth updatePart(Ped ped, Part part, const Asset* a, bool growNow, bool 
         } else {
             ps.growthOwed = false;
             if (!ps.maxAnnounced) {
-                logfile::write("%s: laengste vorhandene Laenge %d erreicht", partLabel(part), maxLen);
+                logfile::write("%s: longest available length %d reached", partLabel(part), maxLen);
                 ps.maxAnnounced = true;
                 result = Growth::ReachedMax;
             }
@@ -370,10 +456,9 @@ static Growth updatePart(Ped ped, Part part, const Asset* a, bool growNow, bool 
     target = std::min(target, std::max(maxLen, current));
 
     if (target != current) {
-        DrawableInfo want = a->info;
-        want.length = target;
+        DrawableInfo want = resolveLength(a->info, target);
         if (!drawableKnown(want)) {
-            logfile::write("%s: %s ist unbekannt - nicht gesetzt", partLabel(part), drawableName(want).c_str());
+            logfile::write("%s: %s is unknown - not set", partLabel(part), drawableName(want).c_str());
             target = current;
             stateDirty = true;
             return Growth::None;
@@ -398,6 +483,7 @@ static void tick(DWORD& nextGrowAt, const Input& in) {
     if (!playerUsable(ped)) return;
 
     auto assets = readAssets(ped);
+    rememberExtensionTextures(assets);
 
     // One automatic dump shortly after loading (once Arthur is fully built),
     // so every log shows what he wears.
@@ -406,23 +492,41 @@ static void tick(DWORD& nextGrowAt, const Input& in) {
     if (!usableSince) usableSince = GetTickCount();
     bool autoDump = !dumpedOnce && GetTickCount() - usableSince > 10000;
     if (in.dump || autoDump) {
-        dumpAssets(ped, assets);
+        dumpAssets(ped, assets, in.dump);
         dumpedOnce = true;
     }
 
     if (g_cfg.recordMode) recordChanges(assets);
-    if (g_paused) return;
+    g_minutesBank += gameMinutesElapsed();
+    if (g_paused) {
+        g_minutesBank = 0;   // paused means paused: no catching up afterwards
+        return;
+    }
 
-    // Fighting the barber's own preview every tick made the hair flicker.
+    // Fighting the barber's own preview every tick made the hair flicker. We
+    // only note whether something got shorter meanwhile (a possible haircut).
     DWORD now = GetTickCount();
-    if (gameIsBusy(ped)) {
-        if (static_cast<LONG>(now - nextGrowAt) >= 0) nextGrowAt = now + kSettleMs;
+    bool busy = gameIsBusy(ped);
+    for (int p = 0; p < kPartCount; ++p) {
+        PartState& ps = g_parts[p];
+        const Asset* a = findPart(assets, static_cast<Part>(p));
+        int seen = a ? a->info.length : -1;
+        if (busy && seen >= 0 && ps.lastSeen >= 0 && seen < ps.lastSeen) ps.cutWhileBusy = true;
+        if (seen >= 0) ps.lastSeen = seen;
+    }
+    if (busy) {
+        if (g_cfg.turbo && static_cast<LONG>(now - nextGrowAt) >= 0) nextGrowAt = now + kSettleMs;
         for (PartState& ps : g_parts) ps.pendingLength = -1;   // the game took over; not our failure
         return;
     }
 
-    bool growNow = in.growNow || static_cast<LONG>(now - nextGrowAt) >= 0;
-    if (growNow) nextGrowAt = now + static_cast<DWORD>(g_cfg.growIntervalSeconds * 1000.0f);
+    bool growNow = in.growNow;
+    if (g_cfg.turbo && static_cast<LONG>(now - nextGrowAt) >= 0) {
+        growNow = true;
+        nextGrowAt = now + static_cast<DWORD>(g_cfg.growIntervalSeconds * 1000.0f);
+    }
+    int elapsed = g_minutesBank;
+    g_minutesBank = 0;
 
     bool dirty = false;
     std::string grown, maxed;
@@ -433,22 +537,24 @@ static void tick(DWORD& nextGrowAt, const Input& in) {
         if (count > 1) {
             // _SET_META_PED_TAG added a layer instead of replacing one: stop touching this part.
             if (!g_parts[p].duplicateWarned) {
-                logfile::write("[warn] %s: %d Drawables gleichzeitig - Teil wird nicht mehr veraendert",
-                               partLabel(part), count);
+                logfile::write("[warn] %s: %d drawables at once - leaving this part alone", partLabel(part), count);
                 g_parts[p].duplicateWarned = true;
             }
             continue;
         }
-        Growth growth = updatePart(ped, part, asset, growNow, in.testCut, dirty);
+        Growth growth = updatePart(ped, part, asset, growNow, in.testCut, elapsed, dirty);
         if (growth == Growth::None) continue;
         std::string& list = growth == Growth::Grew ? grown : maxed;
         if (!list.empty()) list += ", ";
-        list += std::string(shownPart(part)) + " " + std::to_string(g_state[partKey(part)]);
+        list += std::string(partLabel(part)) + " " + std::to_string(targetOf(part));
     }
-    if (in.testCut) notify(tr("test: everything cut to the shortest length", "Test: alles auf kuerzeste Laenge gekuerzt"));
-    if (!grown.empty()) notify(tr("growing: ", "waechst: ") + grown);
-    else if (!maxed.empty()) notify(tr("longest length reached: ", "laengste Laenge erreicht: ") + maxed);
-    if (dirty) saveState(g_dir, g_state);
+    if (in.testCut) notify("test: everything cut to the shortest length");
+    if (!grown.empty()) notify("growing: " + grown);
+    else if (!maxed.empty()) notify("longest length reached: " + maxed);
+    if (dirty) {
+        saveState(g_dir, g_state);
+        for (int p = 0; p < kPartCount; ++p) g_parts[p].savedMinutes = minutesOf(static_cast<Part>(p));
+    }
 }
 
 void ScriptMain() {
@@ -457,19 +563,24 @@ void ScriptMain() {
     g_cfg = loadConfig(g_dir);
     g_state = loadState(g_dir);
 
-    logfile::write("Infinite Hair %s by shrouddeath loaded. interval: %.0fs, lockBarber: %d, recordMode: %d", kVersion,
-                   g_cfg.growIntervalSeconds, g_cfg.lockBarber ? 1 : 0, g_cfg.recordMode ? 1 : 0);
+    if (g_cfg.turbo)
+        logfile::write("Infinite Hair %s by shrouddeath loaded. mode: turbo, %.0f s per step, lockBarber: %d", kVersion,
+                       g_cfg.growIntervalSeconds, g_cfg.lockBarber ? 1 : 0);
+    else
+        logfile::write("Infinite Hair %s by shrouddeath loaded. mode: natural, %.1f in-game hours per step, "
+                       "lockBarber: %d", kVersion, g_cfg.hoursPerStep, g_cfg.lockBarber ? 1 : 0);
+    for (int p = 0; p < kPartCount; ++p) g_parts[p].savedMinutes = minutesOf(static_cast<Part>(p));
     for (const std::string& name : g_cfg.extraDrawables) {
         if (addExtraDrawable(name))
             logfile::write("  extra drawable: %s", name.c_str());
         else
-            logfile::write("  extra drawable IGNORIERT (Name passt nicht zum Schema): %s", name.c_str());
+            logfile::write("  extra drawable IGNORED (name doesn't match the scheme): %s", name.c_str());
     }
     for (const auto& [virtualName, slotName] : g_cfg.chains) {
         if (addChain(virtualName, slotName))
-            logfile::write("  Laenge %s liegt auf Platz %s", virtualName.c_str(), slotName.c_str());
+            logfile::write("  length %s uses slot %s", virtualName.c_str(), slotName.c_str());
         else
-            logfile::write("  [Chains] IGNORIERT (Name passt nicht zum Schema): %s=%s", virtualName.c_str(),
+            logfile::write("  [Chains] IGNORED (name doesn't match the scheme): %s=%s", virtualName.c_str(),
                            slotName.c_str());
     }
 
@@ -485,7 +596,7 @@ void ScriptMain() {
         // Keys are polled every frame so short taps aren't missed between ticks.
         if (keyPressed(g_cfg.toggleKey)) {
             g_paused = !g_paused;
-            notify(g_paused ? tr("paused", "pausiert") : tr("active", "aktiv"));
+            notify(g_paused ? "paused" : "active");
         }
         pending.dump |= keyPressed(g_cfg.dumpKey);
         pending.growNow |= keyPressed(g_cfg.growNowKey);

@@ -16,9 +16,9 @@ Upload a mod). The description editor understands the BBCode in section 4.
 
 ## 2. Brief overview (max. 255 characters)
 
-Arthur's hair and beard keep growing in turbo speed - far past the vanilla limit. Hair
-down to the belt with working hair physics, a beard to match. Barber lock, hotkeys, fully
-configurable. Story mode only.
+Arthur's hair and beard grow like in the vanilla game - but no longer stop at its limit.
+Hair down to the belt with working hair physics, a beard to match. Grow-it-yourself
+hotkey, optional turbo mode. Story mode only.
 
 ## 3. Requirements (Nexus "Requirements" tab)
 
@@ -31,16 +31,17 @@ configurable. Story mode only.
 [size=5][b]Infinite Hair[/b][/size]
 [i]Hair and beard that just don't stop growing.[/i]
 
-In vanilla RDR2 Arthur's hair stops at collar length and his beard at chest length. This mod lets both grow in turbo speed - and then keeps going: [b]20 new hair lengths[/b] down to the belt and a [b]chin beard down to the belt[/b] as well.
+In vanilla RDR2 Arthur's hair stops at collar length and his beard at chest length. With this mod both grow [b]just like in the vanilla game[/b] - and then simply keep going: [b]20 new hair lengths[/b] down to the belt and a [b]chin beard down to the belt[/b] as well.
 
 [size=4][b]Features[/b][/size]
 [list]
-[*][b]Turbo growth:[/b] one length step every 30 seconds (configurable).
+[*][b]Natural growth:[/b] the game grows hair as usual (in-game time: sleeping, waiting, travelling). Where it would stop, the mod keeps growing at the same pace (one step every 48 in-game hours, configurable).
+[*][b]Grow it yourself:[/b] press [b]End[/b] to grow one step whenever you like.
+[*][b]Optional turbo mode:[/b] one step every 30 real seconds.
 [*][b]Far beyond the limit:[/b] hair length 29 instead of 9, chin beard 29 instead of 10, mustache 17, sideburns 14.
 [*][b]Real hair physics:[/b] the long hair keeps its cloth simulation and swings when you walk and ride, with extra collision on the back so it stays on top of your clothes.
-[*][b]Barber lock (optional):[/b] haircuts and shaves are undone at once - or turn it off and let it grow back.
-[*][b]Hotkeys:[/b] F10 pause, End grow now, Delete test cut, F9 debug dump.
-[*][b]English and German[/b] on-screen messages.
+[*][b]Barber works normally:[/b] cut it and it grows back. Optional barber lock if you never want to lose length. When the game resets the hair (outfit change, mounting a horse), the long hair comes back at once.
+[*][b]Hotkeys:[/b] End grow now, F10 pause, Delete cut short, F9 debug dump.
 [/list]
 
 [size=4][b]Requirements[/b][/size]
@@ -60,7 +61,7 @@ Vortex: install as usual, the archive mirrors the game folder.
 
 [size=4][b]Good to know[/b][/size]
 [list]
-[*]Extra-long hair is made for Arthur's [b]"swept back"[/b] style without pomade. Other styles grow to the normal maximum.
+[*]The extra-long hair is Arthur's [b]"swept back"[/b] style without pomade. Any other style (also after a short barber cut) grows to its normal maximum and then continues as long swept back hair.
 [*]The game doesn't accept new model names, so the long lengths [b]replace unused barber options[/b]: hair styles 07/08, the beard styles forked / handlebar / dundreary and John's beard (in the epilogue John wears the long beard too).
 [*]Beards have no physics in RDR2 - a very long beard follows the head rigidly.
 [*]Conflicts with mods that replace those hair/beard models.

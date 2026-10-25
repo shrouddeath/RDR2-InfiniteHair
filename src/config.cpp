@@ -98,11 +98,13 @@ Config loadConfig(const std::string& dir) {
 
     cfg.enabled = readBool(settings, "General", "Enabled", cfg.enabled);
     cfg.onlyArthur = readBool(settings, "General", "OnlyArthur", cfg.onlyArthur);
+    cfg.turbo = _stricmp(readString(settings, "General", "GrowthMode", "natural").c_str(), "turbo") == 0;
+    cfg.hoursPerStep = readFloat(settings, "General", "HoursPerStep", cfg.hoursPerStep);
+    if (cfg.hoursPerStep < 0.1f) cfg.hoursPerStep = 0.1f;
     cfg.growIntervalSeconds = readFloat(settings, "General", "GrowIntervalSeconds", cfg.growIntervalSeconds);
     if (cfg.growIntervalSeconds < 1.0f) cfg.growIntervalSeconds = 1.0f;
     cfg.lockBarber = readBool(settings, "General", "LockBarber", cfg.lockBarber);
     cfg.showNotifications = readBool(settings, "General", "ShowNotifications", cfg.showNotifications);
-    cfg.german = _stricmp(readString(settings, "General", "Language", "en").c_str(), "de") == 0;
     cfg.recordMode = readBool(settings, "Debug", "RecordMode", cfg.recordMode);
 
     cfg.toggleKey = parseKey(readString(settings, "Keys", "Toggle", "F10"));
@@ -138,14 +140,15 @@ State loadState(const std::string& dir) {
     std::string file = dir + "\\InfiniteHair.state";
     State s;
     for (int p = 0; p < kPartCount; ++p) {
-        std::string key = std::string(partKey(static_cast<Part>(p))) + "Length";
-        s[partKey(static_cast<Part>(p))] = GetPrivateProfileIntA("State", key.c_str(), -1, file.c_str());
+        std::string part = partKey(static_cast<Part>(p));
+        s[part + "Length"] = GetPrivateProfileIntA("State", (part + "Length").c_str(), -1, file.c_str());
+        s[part + "Minutes"] = GetPrivateProfileIntA("State", (part + "Minutes").c_str(), 0, file.c_str());
     }
     return s;
 }
 
 void saveState(const std::string& dir, const State& state) {
     std::string file = dir + "\\InfiniteHair.state";
-    for (const auto& [part, length] : state)
-        WritePrivateProfileStringA("State", (part + "Length").c_str(), std::to_string(length).c_str(), file.c_str());
+    for (const auto& [key, value] : state)
+        WritePrivateProfileStringA("State", key.c_str(), std::to_string(value).c_str(), file.c_str());
 }

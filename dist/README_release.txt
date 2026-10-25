@@ -1,9 +1,10 @@
 INFINITE HAIR 1.0.0 - Red Dead Redemption 2 (Story Mode)
 by shrouddeath
 
-Arthur's hair and beard keep growing in turbo speed - far beyond the game's
-maximum. Hair grows down to the belt (length 29 instead of 9), the chin beard
-too (29 instead of 10). Hair keeps its cloth physics.
+Arthur's hair and beard grow just like in the vanilla game - they simply don't
+stop at the game's maximum anymore. Hair grows down to the belt (length 29
+instead of 9), the chin beard too (29 instead of 10). Hair keeps its cloth
+physics. A hotkey lets you grow it yourself whenever you like.
 
 STORY MODE ONLY. Never start Red Dead Online with script mods installed.
 
@@ -29,25 +30,33 @@ Game folder = the folder that contains RDR2.exe
 ----------------------------------------------------------------------------
 USAGE
 ----------------------------------------------------------------------------
-Hair and beard grow one step every 30 seconds (GrowIntervalSeconds).
+Hair and beard grow naturally over in-game time, as in the vanilla game
+(sleeping, waiting and travelling make time pass). Where the game stops -
+at its maximum, or a beard without hair tonic - the mod keeps growing one
+step every 48 in-game hours (HoursPerStep) up to the new maximum.
+  End     grow one step right now (grow it yourself)
   F10     pause / resume
-  End     grow one step right now
-  Delete  test: cut everything to the shortest length
+  Delete  cut everything to the shortest length
   F9      write all worn parts to InfiniteHair.log (for bug reports)
-All settings are in InfiniteHair.ini (Language=de for German messages).
+Barber and camp shaving work normally. GrowthMode=turbo makes it grow every
+30 real seconds, LockBarber=1 undoes haircuts.
+All settings are in InfiniteHair.ini.
 To start over, delete InfiniteHair.state while the game is closed.
 
 ----------------------------------------------------------------------------
 GOOD TO KNOW
 ----------------------------------------------------------------------------
-- Extra-long hair works for Arthur's "swept back" hairstyle without pomade.
-  Other styles grow up to the game's normal maximum.
+- The extra-long hair is Arthur's "swept back" style without pomade. Any
+  other style (also after a short barber cut) grows to its normal maximum
+  and then continues as long swept back hair.
 - The long lengths replace unused barber options: hair styles 07/08,
   the beard styles "forked" / "handlebar" / "dundreary" and John's beard
   (in the epilogue John wears the long beard too). Choosing them at the
   barber shows the long versions.
-- LockBarber=1 (default) undoes haircuts and shaves at once. Set it to 0
-  if you want to cut and let it grow back.
+- When the game re-applies its own (shorter) length - e.g. changing outfits
+  or mounting a horse with a hat - the mod restores the long hair at once.
+- The mod's length is not stored per save game: loading an older save keeps
+  the current length. Delete InfiniteHair.state to start over.
 - Very long beards follow the head rigidly (the game has no beard physics),
   so looking down can push the beard into the chest.
 - Conflicts: other mods that replace Arthur's hair styles 07/08, his
@@ -58,16 +67,6 @@ UNINSTALL
 ----------------------------------------------------------------------------
 Delete InfiniteHair.asi, InfiniteHair.ini, InfiniteHair.state,
 InfiniteHair.log and the folder lml\InfiniteHair.
-
-----------------------------------------------------------------------------
-DEUTSCH (KURZ)
-----------------------------------------------------------------------------
-Voraussetzungen: ScriptHookRDR2 und Lenny's Mod Loader (Links oben).
-1. InfiniteHair.asi und InfiniteHair.ini in den Spielordner (wo RDR2.exe liegt).
-2. Den Ordner lml\InfiniteHair nach <Spielordner>\lml\ kopieren.
-3. In InfiniteHair.ini "Language=de" setzen fuer deutsche Meldungen.
-Tasten: F10 Pause, Ende sofort wachsen, Entf Test-Kuerzen, F9 Log.
-Nur Story-Modus - Red Dead Online nie mit Script-Mods starten.
 
 ----------------------------------------------------------------------------
 CREDITS

@@ -1,8 +1,9 @@
 # Infinite Hair – RDR2 (Story Mode)
 
-Arthur's hair and beard keep growing in turbo speed, far beyond the game's maximum:
-hair down to the belt (length 29 instead of 9, with cloth physics), the chin beard too
-(29 instead of 10).
+Arthur's hair and beard grow just like in the vanilla game, but they no longer stop at
+the game's maximum: hair grows down to the belt (length 29 instead of 9, with cloth
+physics), and so does the chin beard (29 instead of 10). A hotkey lets you grow them
+yourself, and an optional turbo mode grows them in real time.
 
 **Download for players:** Nexus Mods (see the release zip). This repository holds the
 source code and the tools used to build the longer models.
@@ -23,6 +24,15 @@ style and length:
 The `.asi` script (ScriptHookRDR2) reads the worn drawables
 (`GET_META_PED_ASSET_GUIDS`), keeps a target length per part and swaps in the next
 length with `_SET_META_PED_TAG`, keeping textures and tint.
+
+**Growth:** in the default `natural` mode the game grows hair as usual. The mod counts
+in-game time (clock natives) per part. When the game hasn't grown a part for
+`HoursPerStep` in-game hours, the mod grows it one step itself. That happens at the
+vanilla maximum, or with a beard stuck without hair tonic. Haircuts are accepted when
+the length drops while the barber or camp mirror is active. A drop to exactly the
+vanilla maximum outside of that is the game re-applying its tracked length (outfit
+change, mounting), and the mod undoes it. `turbo` mode grows one step every
+`GrowIntervalSeconds` real seconds instead.
 
 **Lengths beyond the vanilla maximum** need new models, and the game ignores new
 drawable names (only drawables from its own archives are accepted). So longer lengths
@@ -88,8 +98,9 @@ this repository.
 
 ## Known limitations
 
-- Extra lengths exist for Arthur's "swept back" hairstyle without pomade. Other styles
-  grow to the vanilla maximum.
+- The extra lengths are modelled on Arthur's "swept back" hairstyle without pomade. Every
+  other style grows to its own maximum first and then continues in that style (e.g. after
+  a short barber cut, which switches to style 01).
 - Choosing hair styles 07/08 or the beard styles forked/handlebar/dundreary at the barber
   shows the long models. In the epilogue John wears the long beard.
 - Beards have no physics in RDR2: very long beards follow the head rigidly.

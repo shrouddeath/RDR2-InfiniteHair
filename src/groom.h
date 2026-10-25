@@ -24,7 +24,7 @@ struct DrawableInfo {
 };
 
 const char* partKey(Part part);     // ini section / state key, e.g. "BeardChin"
-const char* partLabel(Part part);   // shown on screen, e.g. "Kinnbart"
+const char* partLabel(Part part);   // shown on screen, e.g. "Chin beard"
 
 std::string drawableName(const DrawableInfo& info);
 bool parseDrawable(Hash drawable, DrawableInfo& out);
@@ -45,6 +45,22 @@ bool addChain(const std::string& virtualName, const std::string& slotName);
 
 // Drawable to put on the ped for `info`: its borrowed slot, or its own name.
 Hash drawableHash(const DrawableInfo& info);
+
+// The style (and pomade flag) whose chains hold the extra lengths of a part,
+// e.g. hair s04 p0. False if there are no chains for that part.
+bool extensionStyle(Part part, int& style, int& flag);
+
+// Every style can grow past its own maximum: lengths it doesn't have continue
+// in the extension style (a short barber cut lands on hair style s01, which
+// then grows back into the long s04 lengths). Returns the drawable to use for
+// `length` starting from what is worn now.
+DrawableInfo resolveLength(const DrawableInfo& worn, int length);
+
+// Longest length reachable from `worn`, counting the extension style.
+int maxReachableLength(const DrawableInfo& worn);
+
+// Longest length the game itself has for the style of `info`, or -1 if none.
+int vanillaMaxLength(const DrawableInfo& info);
 
 // Shortest / longest known length for the style of `info`, or -1 if none.
 int minKnownLength(const DrawableInfo& info);
