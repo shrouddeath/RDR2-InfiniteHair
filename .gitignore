@@ -1,0 +1,23 @@
+# Build output
+build/
+release/
+*.obj
+*.exe
+*.asi
+__pycache__/
+
+# ScriptHookRDR2 SDK: redistribution is not allowed, download it from dev-c.com
+sdk/
+
+# Runtime files written next to the .asi
+*.log
+*.state
+
+# Derived from Rockstar's game files: shared as a mod on Nexus, never in the repo
+models/export/
+models/generated/
+models/generated_beard/
+lml/InfiniteHair/stream/
+
+# femga/rdr3_discoveries has no license: fetch the name list yourself (see tests/README)
+tests/femga_player_zero_groom.txt

@@ -1,0 +1,16 @@
+<EasyInstall>
+    <Name>Infinite Hair</Name>
+    <Author>shrouddeath</Author>
+    <Version>1.0.0</Version>
+    <Link>https://github.com/shrouddeath/RDR2-InfiniteHair</Link>
+    <Metadata>
+    </Metadata>
+
+    <Resources>
+        <Resource>
+            <!-- Longer hair and beard models (lengths beyond the game's maximum).
+                 They replace unused vanilla slots, see [Chains] in InfiniteHair.ini. -->
+            <StreamingFiles>stream</StreamingFiles>
+        </Resource>
+    </Resources>
+</EasyInstall>
